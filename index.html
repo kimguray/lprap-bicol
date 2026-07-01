@@ -30,6 +30,19 @@
   .chip .lbl{font-size:11px;color:#A8A092;white-space:nowrap;}
   .body{flex:1;display:flex;min-height:0;}
   main.map{flex:1;position:relative;min-width:0;background:radial-gradient(120% 120% at 50% 0%, #EEF2F2 0%, #E7EBEA 70%);display:flex;align-items:center;justify-content:center;padding:14px;}
+  .maptitle{position:absolute;top:26px;left:28px;z-index:20;pointer-events:none;max-width:300px;}
+  .maptitle .mt-kicker{font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#8a8273;}
+  .maptitle .mt-title{font-size:46px;font-weight:800;letter-spacing:-0.03em;line-height:0.98;margin-top:8px;color:#1E1B17;}
+  .maptitle .mt-region{margin-top:10px;display:inline-block;font-size:13px;font-weight:700;letter-spacing:0.04em;color:#fff;background:#1E1B17;padding:5px 12px;border-radius:7px;}
+  .piewrap{position:absolute;bottom:22px;right:24px;z-index:20;background:#FBFAF7;border:1px solid #E2DDD2;border-radius:14px;padding:15px 17px;box-shadow:0 10px 30px rgba(30,27,23,0.1);}
+  .pie-head{font-size:12px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#6B655C;margin-bottom:11px;}
+  .pie-body{display:flex;align-items:center;gap:16px;}
+  .pie-legend{display:flex;flex-direction:column;gap:9px;}
+  .pie-legend .pl{display:flex;align-items:center;gap:9px;}
+  .pie-legend .pl .sw{width:12px;height:12px;border-radius:3px;flex:none;}
+  .pie-legend .pl .pn{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;min-width:24px;}
+  .pie-legend .pl .plab{font-size:11.5px;color:#6e675b;line-height:1.15;}
+  .pie-legend .pl .ppct{font-size:10.5px;color:#a89f90;}
   main.map svg{height:100%;width:100%;display:block;}
   .plabel-halo{font-family:'Public Sans';font-weight:800;letter-spacing:0.14em;text-transform:uppercase;fill:#FBFAF7;stroke:#FBFAF7;stroke-width:5px;stroke-linejoin:round;pointer-events:none;}
   .plabel{font-family:'Public Sans';font-weight:800;letter-spacing:0.14em;text-transform:uppercase;fill:#1E1B17;pointer-events:none;}
@@ -73,6 +86,8 @@
   .wslinks{display:flex;flex-direction:column;gap:7px;margin-top:10px;}
   .wsbtn{display:flex;align-items:center;gap:9px;padding:10px 12px;background:#fff;border:1px solid #C5D9EC;border-radius:9px;text-decoration:none;font-size:13px;font-weight:700;color:#1E3A5C;}
   .wsbtn .arr{margin-left:auto;font-size:14px;color:#5b86b3;}
+  .drivehint{display:flex;gap:6px;margin-top:9px;font-size:11px;line-height:1.45;color:#88909c;}
+  .drivehint b{font-weight:700;color:#5b86b3;}
   .editbox{margin-top:18px;padding-top:16px;border-top:1px solid #ECE7DC;}
   .editbox .et{font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#6B655C;margin-bottom:9px;}
   .editbox .elab{font-size:12px;font-weight:600;color:#8a8273;margin-bottom:6px;}
@@ -110,6 +125,18 @@
   </header>
   <div class="body">
     <main class="map">
+      <div class="maptitle">
+        <div class="mt-kicker">Regional Peace &amp; Order</div>
+        <h2 class="mt-title">EO &amp; LPRAP<br>Monitoring</h2>
+        <div class="mt-region">Bicol Region</div>
+      </div>
+      <div class="piewrap" id="piewrap">
+        <div class="pie-head">Status Overview</div>
+        <div class="pie-body">
+          <svg id="pie" viewBox="0 0 120 120" width="128" height="128"></svg>
+          <div class="pie-legend" id="pieLegend"></div>
+        </div>
+      </div>
       <svg id="map" preserveAspectRatio="xMidYMid meet"></svg>
       <div id="tip"><span class="tn"></span><span class="ts"></span></div>
     </main>
@@ -397,6 +424,7 @@
       if(isUrl(e.photos)){ links.appendChild(el('a',{'class':'wsbtn',href:e.photos,target:'_blank',rel:'noopener'},[ el('span',{text:'📷'}), el('span',{text:'Workshop photos'}), el('span',{'class':'arr',text:'↗'}) ])); }
       if(isUrl(e.outputs)){ links.appendChild(el('a',{'class':'wsbtn',href:e.outputs,target:'_blank',rel:'noopener'},[ el('span',{text:'📄'}), el('span',{text:'Workshop outputs'}), el('span',{'class':'arr',text:'↗'}) ])); }
       if(links.children.length) ws.appendChild(links);
+      if(links.children.length){ ws.appendChild(el('div',{'class':'drivehint',html:'⚠ <span>If a link says “Request access,” open it in Drive → <b>Share</b> → set <b>Anyone with the link</b>.</span>'})); }
       if((e.lprap||e.lprapDate) && !links.children.length){ ws.appendChild(el('div',{'class':'nolink',style:'margin-top:8px;',text:'No photo or output links yet'})); }
       wrap.appendChild(ws);
     }
@@ -494,8 +522,44 @@
   });
   document.getElementById('refreshBtn').addEventListener('click',fetchLive);
 
+  // ---- pie chart ----
+  function renderPie(){
+    var c=counts(), total=c.eo+c.eolprap+c.none;
+    var svg=document.getElementById('pie'); svg.innerHTML='';
+    var cx=60, cy=60, r=52, rin=30;
+    var segs=[['eo',c.eo],['eolprap',c.eolprap],['none',c.none]];
+    if(total===0){ svg.appendChild(svgEl('circle',{cx:cx,cy:cy,r:r,fill:'#ECE7DC'})); }
+    else {
+      var ang=-Math.PI/2;
+      segs.forEach(function(s){
+        if(s[1]<=0) return;
+        var frac=s[1]/total, a2=ang+frac*Math.PI*2;
+        if(frac>=0.9999){ svg.appendChild(svgEl('circle',{cx:cx,cy:cy,r:r,fill:COLORS[s[0]]})); ang=a2; return; }
+        var large=frac>0.5?1:0;
+        var x1=cx+r*Math.cos(ang), y1=cy+r*Math.sin(ang);
+        var x2=cx+r*Math.cos(a2), y2=cy+r*Math.sin(a2);
+        var d='M'+cx+' '+cy+' L'+x1.toFixed(2)+' '+y1.toFixed(2)+' A'+r+' '+r+' 0 '+large+' 1 '+x2.toFixed(2)+' '+y2.toFixed(2)+' Z';
+        svg.appendChild(svgEl('path',{d:d,fill:COLORS[s[0]],stroke:'#FBFAF7','stroke-width':'1.5'}));
+        ang=a2;
+      });
+    }
+    svg.appendChild(svgEl('circle',{cx:cx,cy:cy,r:rin,fill:'#FBFAF7'}));
+    var t1=svgEl('text',{x:cx,y:cy-3,'text-anchor':'middle','font-size':'22','font-weight':'800',fill:'#1E1B17','font-family':"'Public Sans'"}); t1.textContent=String(total);
+    var t2=svgEl('text',{x:cx,y:cy+12,'text-anchor':'middle','font-size':'8.5','font-weight':'700',fill:'#9a9183','font-family':"'Public Sans'",'letter-spacing':'0.5'}); t2.textContent='LGUs';
+    svg.appendChild(t1); svg.appendChild(t2);
+
+    var leg=document.getElementById('pieLegend'); leg.innerHTML='';
+    [['eo','With EO'],['eolprap','EO + LPRAP'],['none','No EO']].forEach(function(x){
+      var n=c[x[0]], pct=total?Math.round(n/total*100):0;
+      var pl=el('div',{'class':'pl'},[ el('span',{'class':'sw'}), el('span',{'class':'pn',text:String(n)}), el('div',{},[ el('div',{'class':'plab',text:x[1]}), el('div',{'class':'ppct',text:pct+'%'}) ]) ]);
+      pl.querySelector('.sw').style.background=COLORS[x[0]];
+      pl.querySelector('.pn').style.color=COLORS[x[0]];
+      leg.appendChild(pl);
+    });
+  }
+
   // ---- render all ----
-  function renderAll(){ renderChips(); renderSrc(); paintMap(); renderDetail(); renderResults(); }
+  function renderAll(){ renderChips(); renderPie(); renderSrc(); paintMap(); renderDetail(); renderResults(); }
 
   renderAll();
   fetchLive();
